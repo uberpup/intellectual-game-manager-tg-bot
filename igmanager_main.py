@@ -3,6 +3,13 @@ import os
 import sys
 import telegram.ext
 import time
+import database
+# Current issues: game_id's and databases; multiword answers; heroku and testing
+
+class MainVariables:
+    game_started = False  # Will be changed after database added
+    start_time = 0.0
+
 
 # Enabling logging
 logging.basicConfig(level=logging.INFO,
@@ -12,8 +19,8 @@ logger = logging.getLogger()
 # Getting mode, so we could define run function for local and Heroku setup
 mode = os.getenv("MODE")
 TOKEN = os.getenv("TOKEN")
-game_started = False  # Will be changed after database added
-start_time = 0.0
+MV = MainVariables()
+
 
 if mode == "dev":
     def run(updater):
@@ -45,15 +52,15 @@ def start_game_handler(bot, update):  # Handler-function for /startgame command
         game_id = 0  # Will be taken out of database
         logger.info("User {} started game {}".format(update.effective_user["id"], game_id))
         update.message.reply_text("Game {} started\nYou can /setquestion and /setanswer now".format(game_id))
-        game_started = True
+        MV.game_started = True
 
 
 def set_question_handler(bot, update, args):  # /setquestion
-    if game_started:
+    if MV.game_started:
         if update.effective_user["id"] in admins:
             question_id = 0
             logger.info("User {} set question {}".format(update.effective_user["id"], question_id))
-            # actual question setting
+            database.set_question(args[0])
         else:
             logger.info("User {} tried to use inaccessible command {}".format(update.effective_user["id"],
                                                                               set_question_handler))
@@ -64,11 +71,15 @@ def set_question_handler(bot, update, args):  # /setquestion
 
 
 def set_answer_handler(bot, update, args):  # /setanswer
-    if game_started:
+    if MV.game_started:
         if update.effective_user["id"] in admins:
             question_id = 0
             logger.info("User {} set answer to question {}".format(update.effective_user["id"], question_id))
-            # actual answer setting
+            if len(args) == 1:
+                database.set_answer(args[0],
+                                    database.DBV.current_number_of_questions)  # need to think about longer answers
+            else:
+                database.set_answer(args[0], args[1])
         else:
             logger.info("User {} tried to use inaccessible command {}".format(update.effective_user["id"],
                                                                               set_question_handler))
@@ -79,11 +90,13 @@ def set_answer_handler(bot, update, args):  # /setanswer
 
 
 def start_question_handler(bot, update, args):  # /startquestion
-    if game_started:
+    if MV.game_started:
         if update.effective_user["id"] in admins:
-            question_id = 0
+            question_id = database.DBV.current_number_of_questions
             logger.info("User {} started question {}".format(update.effective_user["id"], question_id))
-            start_time = time.time()
+            question = database.get_question(args[0])
+            update.message.reply_text("{}. {}".format(args[0], question))
+            MV.start_time = time.time()
         else:
             logger.info("User {} tried to use inaccessible command {}".format(update.effective_user["id"],
                                                                               set_question_handler))
@@ -95,22 +108,24 @@ def start_question_handler(bot, update, args):  # /startquestion
 
 def answer_handler(bot, update, args):  # /answer
     question_id = 0
-    if time.time() - start_time < 60:
-        answer = "".join(args)
+    answer = ""
+    if time.time() - MV.start_time < 60:
+        answer = ("".join(args)).lower()
         logger.info("User {} answered question {}".format(update.effective_user["id"], question_id))
-        update.message.reply_text("Anwer for question {} written".format(question_id))
+        update.message.reply_text("Answer for question {} written".format(question_id))
     else:
         logger.info("User {} answered question {} after deadline".format(update.effective_user["id"], question_id))
         update.message.reply_text("Too late")
-
-
-def fix_answer_handler(bot, update, args):  # /fixanswer
-    question_id = 0
-    logger.info("User {} fixed answer to question {}".format(update.effective_user["id"], question_id))
+    # pause
+    if answer != "" and time.time() - MV.start_time >= 60:
+        update.message.reply_text("+" if database.check_answer(answer, question_id) else "-")
 
 
 def standings_handler(bot, update):  # /standings
     logger.info("User {} queried standings".format(update.effective_user["id"]))
+    rating = database.get_standings()
+    for team in rating:
+        update.message.reply_text("{}".format(team))
 
 
 if __name__ == '__main__':
@@ -124,7 +139,6 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("setanswer", set_answer_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("startquestion", start_question_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("answer", answer_handler, pass_args=True))
-    updater.dispatcher.add_handler(telegram.ext.CommandHandler("fixanswer", fix_answer_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("standings", standings_handler))
 
     run(updater)
