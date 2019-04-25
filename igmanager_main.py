@@ -3,12 +3,14 @@ import os
 import sys
 import telegram.ext
 import time
-import database
-# Current issues: game_id's and databases; multiword answers; heroku and testing
+import database  # Current issues: game_id's and databases; multiword answers; heroku and testing; admin ids
+
 
 class MainVariables:
     game_started = False  # Will be changed after database added
     start_time = 0.0
+    answering_time = 60.0
+    current_question_id = 0
 
 
 # Enabling logging
@@ -16,7 +18,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger()
 
-# Getting mode, so we could define run function for local and Heroku setup
+# Getting mode, so we could define run function for both local and Heroku setup
 mode = os.getenv("MODE")
 TOKEN = os.getenv("TOKEN")
 MV = MainVariables()
@@ -55,12 +57,38 @@ def start_game_handler(bot, update):  # Handler-function for /startgame command
         MV.game_started = True
 
 
-def set_question_handler(bot, update, args):  # /setquestion
+def end_game_handler(bot, update):  # /endgame
+    if not (update.effective_user["id"] in admins):
+        logger.info("User {} tried to use inaccessible command {}".format(update.effective_user["id"],
+                                                                          end_game_handler))
+        update.message.reply_text("Oops, you don't have rights to access this command")
+    else:
+        game_id = 0  # Will be taken out of database
+        logger.info("User {} finished game {}".format(update.effective_user["id"], game_id))
+        # some result stats
+        update.message.reply_text("Game {} finished".format(game_id))
+        MV.game_started = False
+        database.finish_db()
+
+
+def set_answering_time(bot, update, args):  # /setansweringtime; specify the time in seconds
+    if len(args) > 0:
+        MV.answering_time = float(args[0])
+        logger.info("User {} changed answering_time to {}".format(update.effective_user["id"], MV.answering_time))
+        update.message.reply_text("answering_time changed to {}".format(MV.answering_time))
+
+
+def set_question_handler(bot, update, args):  # /setquestion; may specify the number of question (without #)
     if MV.game_started:
         if update.effective_user["id"] in admins:
-            question_id = 0
-            logger.info("User {} set question {}".format(update.effective_user["id"], question_id))
-            database.set_question(args[0])
+            if len(args) > 0:
+                question_id = 0
+                logger.info("User {} set question {}".format(update.effective_user["id"], question_id))
+                question = ("".join(args))
+                database.set_question(question)
+            else:
+                logger.info("User {} tried to enter empty answer".format(update.effective_user["id"]))
+                update.message.reply_text("Try again with valid data: /set_question needs at least one argument")
         else:
             logger.info("User {} tried to use inaccessible command {}".format(update.effective_user["id"],
                                                                               set_question_handler))
@@ -70,16 +98,23 @@ def set_question_handler(bot, update, args):  # /setquestion
         update.message.reply_text("Game hasn't started yet")
 
 
-def set_answer_handler(bot, update, args):  # /setanswer
+def set_answer_handler(bot, update, args):  # /setanswer; need to specify the answer,
+    # may specify the answer's question by typing #NUM as last argument, where NUM is the number of needed question
     if MV.game_started:
         if update.effective_user["id"] in admins:
             question_id = 0
             logger.info("User {} set answer to question {}".format(update.effective_user["id"], question_id))
-            if len(args) == 1:
-                database.set_answer(args[0],
-                                    database.DBV.current_number_of_questions)  # need to think about longer answers
+            if len(args) > 0:
+                if args[len(args) - 1].startswith("#"):  # special marker for question number
+                    answer = ("".join(args))
+                    database.set_answer(answer,
+                                        database.DBV.current_number_of_questions)  # need to think about longer answers
+                else:
+                    answer = ("".join(args[:len(args) - 1]))
+                    database.set_answer(answer, args[len(args) - 1])
             else:
-                database.set_answer(args[0], args[1])
+                logger.info("User {} tried to enter empty answer".format(update.effective_user["id"]))
+                update.message.reply_text("Try again with valid data: /set_answer needs at least one argument")
         else:
             logger.info("User {} tried to use inaccessible command {}".format(update.effective_user["id"],
                                                                               set_question_handler))
@@ -89,12 +124,13 @@ def set_answer_handler(bot, update, args):  # /setanswer
         update.message.reply_text("Game hasn't started yet")
 
 
-def start_question_handler(bot, update, args):  # /startquestion
+def start_question_handler(bot, update, args):  # /startquestion; need to specify its number
     if MV.game_started:
         if update.effective_user["id"] in admins:
             question_id = database.DBV.current_number_of_questions
             logger.info("User {} started question {}".format(update.effective_user["id"], question_id))
             question = database.get_question(args[0])
+            MV.current_question_id = args[0]
             update.message.reply_text("{}. {}".format(args[0], question))
             MV.start_time = time.time()
         else:
@@ -106,25 +142,39 @@ def start_question_handler(bot, update, args):  # /startquestion
         update.message.reply_text("Game hasn't started yet")
 
 
-def answer_handler(bot, update, args):  # /answer
-    question_id = 0
+def answer_handler(bot, update, args):  # /answer; need to specify the answer itself
+    question_id = MV.current_question_id
     answer = ""
-    if time.time() - MV.start_time < 60:
+    if time.time() - MV.start_time < MV.answering_time:
         answer = ("".join(args)).lower()
         logger.info("User {} answered question {}".format(update.effective_user["id"], question_id))
         update.message.reply_text("Answer for question {} written".format(question_id))
     else:
         logger.info("User {} answered question {} after deadline".format(update.effective_user["id"], question_id))
         update.message.reply_text("Too late")
-    # pause
-    if answer != "" and time.time() - MV.start_time >= 60:
-        update.message.reply_text("+" if database.check_answer(answer, question_id) else "-")
+    # pause : restart if updated answer appeared : somehow need to throw exceptions using
+    # global synchronizer of answer calls
+    if answer != "" and time.time() - MV.start_time >= MV.answering_time:
+        if database.check_answer(answer, question_id):
+            database.increase_points(update.effective_user["id"])
+            logger.info("Team {} answered question {} correctly, points {}".format(
+                                        database.get_team_name(update.effective_user["id"]), question_id,
+                                        database.get_points(update.effective_user["id"])))
+            update.message.reply_text("Question {} - correct".format(question_id))
+        else:
+            logger.info("Team {} answered question {} mistakenly, points {}".format(
+                database.get_team_name(update.effective_user["id"]), question_id,
+                database.get_points(update.effective_user["id"])))
+            update.message.reply_text("Question {} - incorrect".format(question_id))
+    if answer == "" and time.time() - MV.start_time >= MV.answering_time:
+        logger.info("User {} has no answer on question {}".format(update.effective_user["id"], question_id))
+        update.message.reply_text("No answer")
 
 
 def standings_handler(bot, update):  # /standings
     logger.info("User {} queried standings".format(update.effective_user["id"]))
     rating = database.get_standings()
-    for team in rating:
+    for team in rating:  # may change this to format of top3 + ... + user's team
         update.message.reply_text("{}".format(team))
 
 
@@ -135,6 +185,8 @@ if __name__ == '__main__':
 
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("start", start_handler))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("startgame", start_game_handler))
+    updater.dispatcher.add_handler(telegram.ext.CommandHandler("endgame", end_game_handler))
+    updater.dispatcher.add_handler(telegram.ext.CommandHandler("setansweringtime", set_answer_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("setquestion", set_question_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("setanswer", set_answer_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("startquestion", start_question_handler, pass_args=True))

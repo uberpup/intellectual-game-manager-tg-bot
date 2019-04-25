@@ -36,7 +36,7 @@ def increase_points(user_id):
         c.execute("""UPDATE game_info SET points = (?) WHERE id = (?)""", (points + 1, user_id))
 
 
-def set_question(question_text, answer_text):
+def set_question(question_text):
     with conn:
         c.execute("INSERT INTO question_base VALUES (?, ?)", (DBV.current_number_of_questions, question_text))
         DBV.current_number_of_questions += 1
@@ -61,6 +61,20 @@ def get_question(question_id):
     return current_question
 
 
+def get_team_name(user_id):
+    with conn:
+        c.execute("SELECT team_name FROM game_info WHERE id = (?)", (user_id, ))
+        current_team_name = c.fetchone()
+    return current_team_name
+
+
+def get_points(user_id):
+    with conn:
+        c.execute("SELECT points FROM game_info WHERE id = (?)", (user_id, ))
+        current_points = c.fetchone()
+    return current_points
+
+
 def get_standings():
     with conn:
         c.execute("SELECT points FROM game_table ORDER BY points, id")
@@ -68,5 +82,5 @@ def get_standings():
     return rating
 
 
-conn.commit()
-conn.close()
+def finish_db():
+    conn.close()
