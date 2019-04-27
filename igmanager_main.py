@@ -190,6 +190,12 @@ def standings_handler(bot, update):  # /standings
         update.message.reply_text("{}".format(team))
 
 
+def help_handler(bot, update):
+    logger.info("User {} needed help".format(update.effective_user["id"]))
+    update.message.reply_text("List of commands available for you:\n/register + team_name\n/answer + answer_text:"
+                              " if the game and a question are running\n/standings\n/help")
+
+
 if __name__ == '__main__':
     logger.info("Starting bot")
     updater = telegram.ext.Updater(token=TOKEN)
@@ -205,5 +211,6 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("register", register_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("answer", answer_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("standings", standings_handler))
+    updater.dispatcher.add_handler(telegram.ext.CommandHandler("help", help_handler))
 
     run(updater)
