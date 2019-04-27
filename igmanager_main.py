@@ -3,7 +3,7 @@ import os
 import sys
 import telegram.ext
 import time
-import database  # Current issues: game_id's and databases; multiword answers; heroku and testing; admin ids
+import database  # Current issues: game_id's and databases; using sqlite with heroku
 
 
 class MainVariables:
@@ -42,7 +42,7 @@ else:
 
 def start_handler(bot, update):  # Handler-function for /start command
     logger.info("User {} started bot".format(update.effective_user["id"]))
-    update.message.reply_text("Hello!\nChoose to /startgame or to /participate")
+    update.message.reply_text("Hello!\nChoose to /startgame or to /register your team")
 
 
 def start_game_handler(bot, update):  # Handler-function for /startgame command
@@ -88,7 +88,7 @@ def set_question_handler(bot, update, args):  # /setquestion; may specify the nu
                 database.set_question(question)
             else:
                 logger.info("User {} tried to enter empty answer".format(update.effective_user["id"]))
-                update.message.reply_text("Try again with valid data: /set_question needs at least one argument")
+                update.message.reply_text("Try again with valid data: /setquestion needs at least one argument")
         else:
             logger.info("User {} tried to use inaccessible command {}".format(update.effective_user["id"],
                                                                               set_question_handler))
@@ -114,7 +114,7 @@ def set_answer_handler(bot, update, args):  # /setanswer; need to specify the an
                     database.set_answer(answer, args[len(args) - 1])
             else:
                 logger.info("User {} tried to enter empty answer".format(update.effective_user["id"]))
-                update.message.reply_text("Try again with valid data: /set_answer needs at least one argument")
+                update.message.reply_text("Try again with valid data: /setanswer needs at least one argument")
         else:
             logger.info("User {} tried to use inaccessible command {}".format(update.effective_user["id"],
                                                                               set_question_handler))
@@ -132,6 +132,7 @@ def start_question_handler(bot, update, args):  # /startquestion; need to specif
             question = database.get_question(args[0])
             MV.current_question_id = args[0]
             update.message.reply_text("{}. {}".format(args[0], question))
+            # Message every participant
             MV.start_time = time.time()
         else:
             logger.info("User {} tried to use inaccessible command {}".format(update.effective_user["id"],
@@ -140,6 +141,17 @@ def start_question_handler(bot, update, args):  # /startquestion; need to specif
     else:
         logger.info("User {} tried to set question before game started".format(update.effective_user["id"]))
         update.message.reply_text("Game hasn't started yet")
+
+
+def register_handler(bot, update, args):
+    if len(args) > 0:
+        team_name = ("".join(args))
+        database.insert_player(update.effective_user["id"], team_name)
+        logger.info("User {} registered team {}".format(update.effective_user["id"], team_name))
+        update.message.reply_text("Team {} registered\nNow wait for questions to start ".format(team_name))
+    else:
+        logger.info("User {} didn't name his team".format(update.effective_user["id"]))
+        update.message.reply_text("Try again entering your team's name after /register")
 
 
 def answer_handler(bot, update, args):  # /answer; need to specify the answer itself
@@ -181,7 +193,7 @@ def standings_handler(bot, update):  # /standings
 if __name__ == '__main__':
     logger.info("Starting bot")
     updater = telegram.ext.Updater(token=TOKEN)
-    admins = set()
+    admins = [360414453]  # Change to your admin's id
 
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("start", start_handler))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("startgame", start_game_handler))
@@ -190,6 +202,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("setquestion", set_question_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("setanswer", set_answer_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("startquestion", start_question_handler, pass_args=True))
+    updater.dispatcher.add_handler(telegram.ext.CommandHandler("register", register_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("answer", answer_handler, pass_args=True))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("standings", standings_handler))
 

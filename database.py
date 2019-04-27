@@ -24,9 +24,9 @@ c.execute("""CREATE TABLE question_base(
     """)
 
 
-def insert_player(user_id):
+def insert_player(user_id, team_name):
     with conn:
-        c.execute("INSERT INTO game_info VALUES (?, ?)", (user_id, 0))
+        c.execute("INSERT INTO game_info VALUES (?, ?, ?)", (user_id, team_name, 0))
 
 
 def increase_points(user_id):
