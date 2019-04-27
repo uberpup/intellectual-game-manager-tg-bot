@@ -194,6 +194,11 @@ def help_handler(bot, update):
     logger.info("User {} needed help".format(update.effective_user["id"]))
     update.message.reply_text("List of commands available for you:\n/register + team_name\n/answer + answer_text:"
                               " if both the game and a question are running\n/standings\n/help")
+    if update.effective_user["id"] in admins:
+        update.message.reply_text("As an sdmin you also can:\n/startgame\n/endgame\n/setansweringtime + answering_time"
+                                  "\n/setquestion + question + number(unnecessary)"
+                                  "\n/setanswer + answer + #number(default - answer for the last one)"
+                                  "\n/startquestion + its historical number")
 
 
 if __name__ == '__main__':
