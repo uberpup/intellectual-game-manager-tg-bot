@@ -42,7 +42,7 @@ else:
 
 def start_handler(bot, update):  # Handler-function for /start command
     logger.info("User {} started bot".format(update.effective_user["id"]))
-    update.message.reply_text("Hello!\nChoose to /startgame or to /register your team")
+    update.message.reply_text("Hello!\n/startgame, /register your team or seek for /help")
 
 
 def start_game_handler(bot, update):  # Handler-function for /startgame command
@@ -193,7 +193,7 @@ def standings_handler(bot, update):  # /standings
 def help_handler(bot, update):
     logger.info("User {} needed help".format(update.effective_user["id"]))
     update.message.reply_text("List of commands available for you:\n/register + team_name\n/answer + answer_text:"
-                              " if the game and a question are running\n/standings\n/help")
+                              " if both the game and a question are running\n/standings\n/help")
 
 
 if __name__ == '__main__':
