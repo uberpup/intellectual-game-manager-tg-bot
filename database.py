@@ -41,7 +41,7 @@ class QuestionBase(BaseExtModel):
 
     class Meta:
         db_table = "question_base"
-        order_by = ("question_number", )
+        order_by = ("game_id", )
 
 
 DBVariables = DatabaseVariables()
