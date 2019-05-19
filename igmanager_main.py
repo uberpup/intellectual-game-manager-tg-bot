@@ -19,15 +19,15 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger()
 
 # Getting mode, so we could define run function for both local and Heroku setup
-mode = os.getenv("MODE")
+game_state = os.getenv("GAMESTATE")
 TOKEN = os.getenv("TOKEN")
 MVariables = MainVariables()
 
 
-if mode == "dev":
+if game_state == "dev":
     def run(updater):
         updater.start_polling()
-elif mode == "prod":
+elif game_state == "prod":
     def run(updater):
         PORT = int(os.environ.get("PORT", "8443"))
         HEROKU_APP_NAME = os.environ.get("HEROKU_APP_NAME")
@@ -213,7 +213,8 @@ def help_handler(bot, update):
 if __name__ == '__main__':
     logger.info("Starting bot")
     updater = telegram.ext.Updater(token=TOKEN)
-    admins = []  # Enter your admin's id/ids
+    admin_file = open("admin_config.txt", 'r')
+    admins = [int(line.strip()) for line in admin_file]  # Enter your admin's id/ids there divided by space
 
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("start", start_handler))
     updater.dispatcher.add_handler(telegram.ext.CommandHandler("startgame", start_game_handler))
