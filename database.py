@@ -8,12 +8,12 @@ class DatabaseVariables:
     current_game_number = 0
 
 
-NAME = os.getenv("NAME")
-USER = os.getenv("USER")
-PASSWORD = os.getenv("PASSWORD")
-HOST = os.getenv("HOST")
-db = PostgresqlExtDatabase(NAME, user=USER, password=PASSWORD,
-                           host=HOST, register_hstore=True)
+DATABASE_NAME = os.getenv("DATABASE_NAME")
+DATABASE_USER = os.getenv("DATABASE_USER")
+DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD")
+DATABASE_HOST = os.getenv("DATABASE_HOST")
+db = PostgresqlExtDatabase(DATABASE_NAME, user=DATABASE_USER, password=DATABASE_PASSWORD,
+                           host=DATABASE_HOST, register_hstore=True)
 
 
 class BaseExtModel(Model):
@@ -56,11 +56,11 @@ def start_game(admin_id):
     return DBVariables.current_game_number - 1
 
 
-def get_game_id(mode, id):
+def get_game_id(mode, param_id):
     if mode:
-        row = GameInfo.get(game_starter=id)
+        row = GameInfo.get(game_starter=param_id)
     else:
-        row = GameInfo.get(id=id)
+        row = GameInfo.get(id=param_id)
     return row.game_id
 
 
@@ -72,13 +72,13 @@ def insert_player(user_id, team_name, current_game_id):
 
 
 def increase_points(user_id, current_game_id):
-    row = GameInfo.get(game_id = current_game_id, id=user_id)
+    row = GameInfo.get(game_id=current_game_id, id=user_id)
     row.points = row.points + 1
     row.save()
 
 
 def set_question(question_text, current_game_id):
-    row = QuestionBase.get(game_id = current_game_id)
+    row = QuestionBase.get(game_id=current_game_id)
     row.question = question_text
     row.question_number = DBVariables.current_number_of_questions
     row.save()
